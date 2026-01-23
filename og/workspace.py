@@ -81,7 +81,7 @@ class Issue:
             number=self.number,
         )
 
-    def get_slug(self) -> str:
+    def fetch_get_slug(self) -> str:
         return get_slug_from_name(self.fetch_name())
 
     def branch(self, slug: str, *, sep: str = "/") -> IssueBranch:
@@ -98,8 +98,7 @@ class IssueBranch:
         match = ISSUE_BRANCH_RE.fullmatch(self.name)
         if not match:
             return None
-        number_as_str = match.group("issue_number")
-        if number_as_str:
+        if number_as_str := match.group("issue_number"):
             return int(number_as_str)
         return None
 
@@ -107,10 +106,20 @@ class IssueBranch:
 @dataclass
 class PullRequest:
     number: int
+    remote: Remote = field(default_factory=future_context_get(Upstream))
 
-    @property
-    def is_backport(self) -> None:
-        pass
+    def fetch_needs_backport_to(
+        self, version: str, github_client: GitHubClient | None = None
+    ) -> bool:
+        if github_client is None:
+            github_client = context_get(GitHubClient)
+        github_self = github_client.rest.pulls.get(
+            self.remote.owner,
+            self.remote.repo,
+            self.number,
+        ).json()
+        label_names = {label["name"] for label in github_self["labels"]}
+        return f"needs backport to {version}" in label_names
 
 
 # /issues/ vs /pulls/ mostly doesn't matter, because GitHub

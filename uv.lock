@@ -756,6 +756,7 @@ wheels = [
 name = "og"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "contextmodel" },
     { name = "githubkit" },
 ]
@@ -789,6 +790,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.3.1" },
     { name = "contextmodel", specifier = ">=0.2.1" },
     { name = "githubkit", specifier = ">=0.14.3" },
 ]
