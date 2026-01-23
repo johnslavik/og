@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import ClassVar
 
-from contextclass import ContextClass, current, supplier
+from contextmodel import context_get, future_context_get
 from githubkit import GitHub
 
 SEP_RE = re.compile(r"\. \-_")
@@ -13,7 +13,7 @@ TRASH_CHARS_RE = re.compile(r"[^a-zA-Z\-]")
 ISSUE_BRANCH_RE = re.compile(r"(?P<issue_number>\d{4,})(?P<slug>.+)")
 
 
-class GitHubClient(GitHub, ContextClass):
+class GitHubClient(GitHub):
     pass
 
 
@@ -39,18 +39,18 @@ class Remote(ABC):
     def ssh(self, git_user: str = "git") -> str:
         return f"{git_user}@{self.site}:{self.owner}/{self.repo}"
 
-    def https(self, *, end_slash: bool = True) -> str:
+    def https(self, *, end_slash: bool = False) -> str:
         url = f"https://{self.site}/{self.owner}/{self.repo}"
         return url + ("/" if end_slash else "")
 
 
 @dataclass
-class Upstream(Remote, ContextClass):
+class Upstream(Remote):
     name = "upstream"
 
 
 @dataclass
-class Origin(Remote, ContextClass):
+class Origin(Remote):
     name = "origin"
 
 
@@ -64,9 +64,9 @@ def get_slug_from_name(name: str) -> str:
 
 
 @dataclass
-class Issue(ContextClass):
+class Issue:
     number: int
-    remote: Remote = field(default_factory=supplier(Upstream))
+    remote: Remote = field(default_factory=future_context_get(Upstream))
 
     @cached_property
     def url(self) -> str:
@@ -74,7 +74,7 @@ class Issue(ContextClass):
 
     def fetch_name(self, client: GitHubClient | None = None) -> str:
         if client is None:
-            client = current(GitHubClient)
+            client = context_get(GitHubClient)
         return get_issue_name(
             client=client,
             remote=self.remote,
@@ -89,7 +89,7 @@ class Issue(ContextClass):
 
 
 @dataclass
-class IssueBranch(ContextClass):
+class IssueBranch:
     name: str
     upstream: Remote
 
@@ -105,7 +105,7 @@ class IssueBranch(ContextClass):
 
 
 @dataclass
-class PullRequest(ContextClass):
+class PullRequest:
     number: int
 
     @property
@@ -113,5 +113,13 @@ class PullRequest(ContextClass):
         pass
 
 
+# /issues/ vs /pulls/ mostly doesn't matter, because GitHub
+# redirects between these as necessary.
+
+
 def get_issue_url(remote: Remote, number: int) -> str:
-    return remote.https(end_slash=True) + f"issues/{number}"
+    return remote.https(end_slash=False) + f"/issues/{number}"
+
+
+def get_pr_url(remote: Remote, number: int) -> str:
+    return remote.https(end_slash=False) + f"/pulls/{number}"
